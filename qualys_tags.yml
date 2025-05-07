@@ -1,0 +1,137 @@
+tags:
+    - id: 56324411
+      name: malware-domain-assets
+    - id: 56324412
+      name: cloud-agent
+    - id: 56335533
+      name: business-units
+    - id: 56335534
+      name: unassigned-business-unit
+    - id: 56335535
+      name: internet-facing-assets
+    - id: 56335536
+      name: default-dashboard-access-tag
+    - id: 56335545
+      name: passive-sensor
+    - id: 56335549
+      name: unmanaged
+    - id: 56335553
+      name: sem
+    - id: 57081663
+      name: asset-groups
+    - id: 57081664
+      name: data-center
+    - id: 57081668
+      name: cumberland
+    - id: 57081706
+      name: "\uFEFF\x61\x72\x64\x2D\x6D\x69\x61\x6D\x69"
+    - id: 57081707
+      name: agm-greer
+    - id: 57081708
+      name: cr-corp
+    - id: 57081709
+      name: ak-production
+    - id: 57081710
+      name: agm-lexington
+    - id: 57081711
+      name: cr-alabama
+    - id: 57081712
+      name: macon
+    - id: 57081713
+      name: 185-laredo
+    - id: 57081714
+      name: ard-jacksonville
+    - id: 57081715
+      name: ak-roswell
+    - id: 57081716
+      name: fbs-showroom-bldg-a
+    - id: 57081717
+      name: bfc-roswell
+    - id: 57081718
+      name: santa-rosa-bldg-c
+    - id: 57081719
+      name: agm-columbus
+    - id: 57081720
+      name: bsi-norcross
+    - id: 57081721
+      name: sewell
+    - id: 57081722
+      name: ard-tampa
+    - id: 57081723
+      name: agm-charleton
+    - id: 57081724
+      name: ard-charlotte
+    - id: 57081725
+      name: fbs-santa-rosa-new-b
+    - id: 57081726
+      name: umi-naples
+    - id: 57081727
+      name: umi-boynton
+    - id: 57081728
+      name: umi-azure
+    - id: 57081729
+      name: umi-tampa
+    - id: 57081730
+      name: umi-jax-(anyoldstone)
+    - id: 57081731
+      name: umi-decatur
+    - id: 57081732
+      name: umi-orlando
+    - id: 57081733
+      name: umi-greenville
+    - id: 57081734
+      name: umi-atl-west
+    - id: 57081738
+      name: "\uFEFF\x74\x72\x6A\x2D\x63\x68\x61\x72\x6C\x6F\x74\x74\x65"
+    - id: 57081739
+      name: trj-morrisville
+    - id: 57081740
+      name: trj-portsmouth
+    - id: 57081741
+      name: trj-midlothian
+    - id: 57081742
+      name: trj-beltsville
+    - id: 57081743
+      name: trj-jamesburg
+    - id: 57081744
+      name: trj-brooklyn
+    - id: 57081745
+      name: trj-farmingdale
+    - id: 57081746
+      name: trj-bridgeport
+    - id: 57081796
+      name: 3000-pine
+    - id: 57081797
+      name: cr-corporate
+    - id: 57081798
+      name: trj-norwood
+    - id: 57193219
+      name: cr
+    - id: 57195021
+      name: easm
+    - id: 57195022
+      name: shodan
+    - id: 57195023
+      name: easm-confidence-low
+    - id: 57195024
+      name: easm-confidence-medium
+    - id: 57195025
+      name: easm-confidence-high
+    - id: 57221419
+      name: dns-sinkhole
+    - id: 61218912
+      name: azure_connector_found
+    - id: 61241703
+      name: umi-data-center
+    - id: 61246539
+      name: scannedassets
+    - id: 61826953
+      name: kyocera-printers
+    - id: 61826954
+      name: tandberg-devices
+    - id: 62576575
+      name: caps
+    - id: 62576576
+      name: caps-leader
+    - id: 62827778
+      name: criticalassets
