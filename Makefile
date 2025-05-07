@@ -1,5 +1,5 @@
 BINARY_NAME	:=	synctags
-SOURCE_NAME	:=	"synctags.go qualys_client.go tags.go"
+SOURCE_NAME	:=	"synctags.go qualys_client.go tags.go crowdstrike_client.go"
 SOURCE_FILES 	:=	$(shell echo ${SOURCE_NAME} | tr -d '"')
 
 deploy: scan lint build
