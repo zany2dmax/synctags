@@ -12,7 +12,7 @@ import (
 type Client struct{ r *resty.Client }
 
 // NewClient points Resty at your QPS server
-func NewClient(baseURL, username, password string) *Client {
+func NewQualysClient(baseURL, username, password string) *Client {
 	r := resty.New().
 		SetHostURL(baseURL).
 		SetBasicAuth(username, password).
