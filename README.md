@@ -13,5 +13,5 @@ Create the SOT from YAML  tag list
 Sync the Tags from the YML Master with Qualys
     # synctags qualys sync
 ```    
-For Crowdstrike the vendor name would change
+For Crowdstrike the vendor name would change but is otherwise the same
 
