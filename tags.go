@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 	"gopkg.in/yaml.v3"
-	"io/ioutil"
+	"io"
 )
 
 // Tag is the normalized representation

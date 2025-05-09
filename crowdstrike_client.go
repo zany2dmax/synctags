@@ -22,7 +22,7 @@ type CrowdstrikeClient struct {
 // baseURL: e.g. "https://api.us-2.crowdstrike.com"
 func NewCrowdstrikeClient(baseURL, clientID, clientSecret string) (*CrowdstrikeClient, error) {
 	r := resty.New().
-		SetHostURL(baseURL).
+		SetBaseURL(baseURL).
 		SetHeader("Accept", "application/json").
 		SetHeader("Content-Type", "application/x-www-form-urlencoded").
 		SetRetryCount(3).

@@ -14,7 +14,7 @@ type Client struct{ r *resty.Client }
 // NewClient points Resty at your QPS server
 func NewQualysClient(baseURL, username, password string) *Client {
 	r := resty.New().
-		SetHostURL(baseURL).
+		SetBaseURL(baseURL).
 		SetBasicAuth(username, password).
 		SetHeader("Content-Type", "text/xml").
 		SetHeader("Accept", "application/xml")
@@ -56,7 +56,7 @@ func (qc *Client) ListTags() ([]QualysTag, error) {
 		SetResult(&tagsResponse{}).
 		Post(searchTagPath)
 	if err != nil {
-		return nil, fmt.Errorf("Qualys ListTags failed: %w", err)
+		return nil, fmt.Errorf("qualys ListTags failed: %w", err)
 	}
 	if resp.StatusCode() != 200 {
 		return nil, fmt.Errorf("unexpected HTTP %d from Qualys:\n%s",
@@ -83,10 +83,10 @@ func (qc *Client) UpsertTag(t Tag) error {
 		SetBody(reqBody).
 		Post("/qps/rest/2.0/update/am/tag")
 	if err != nil {
-		return fmt.Errorf("Qualys UpsertTag request failed: %w", err)
+		return fmt.Errorf("qualys UpsertTag request failed: %w", err)
 	}
 	if resp.StatusCode() != 200 {
-		return fmt.Errorf("Qualys UpsertTag unexpected HTTP %d: %s",
+		return fmt.Errorf("qualys UpsertTag unexpected HTTP %d: %s",
 			resp.StatusCode(), resp.String())
 	}
 	return nil
