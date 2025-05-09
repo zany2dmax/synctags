@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 	"gopkg.in/yaml.v3"
-	"io"
+	"os"
 )
 
 // Tag is the normalized representation
@@ -14,7 +14,7 @@ type Tag struct {
 
 // ReadTagsFromYAML reads tags from a YAML file
 func ReadTagsFromYAML(path string) ([]Tag, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func WriteTagsToYAML(tags []Tag, path string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0644)
 }
 
 // NormalizeQualysTag converts a QualysTag to the canonical Tag
