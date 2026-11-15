@@ -1,0 +1,205 @@
+version: '3'
+
+# Modelled on cti-agent's Taskfile: the same quality gates, and `ship`
+# refuses to push unless every one passes.
+
+vars:
+  BINARY_NAME: synctags
+  SOURCE_NAME: ./cmd/synctags
+  INSTALL_PATH: "{{.HOME}}/bin"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+# ── quality ──────────────────────────────────────────────────────────────────
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - gofmt -w .
+
+  fmt:check:
+    desc: Fail if anything is unformatted, rather than silently reformatting it
+    # A gate may not modify the thing it is checking: if ship ran `gofmt -w`
+    # and then pushed, the reformatting would stay behind, uncommitted. Fix it
+    # with `task fmt`, then commit.
+    cmds:
+      - |
+        unformatted="$(gofmt -l . || true)"
+        if [ -n "$unformatted" ]; then
+          echo "These files are not gofmt-clean:" >&2
+          echo "$unformatted" | sed 's/^/  /' >&2
+          echo "" >&2
+          echo "Run 'task fmt' and COMMIT the result." >&2
+          exit 1
+        fi
+        echo "  ok  gofmt clean"
+
+  scan:
+    # staticcheck: correctness and dead code, NOT a vulnerability scan. The
+    # security gates are `gosec` and `govulncheck`.
+    desc: Run staticcheck (correctness, not a security scan)
+    cmds:
+      - staticcheck ./...
+
+  lint:
+    # The ruleset is .golangci.yml, so every machine applies the same one.
+    desc: "Go code quality: ignored errors, dead code, unused assignments, readability (golangci-lint)"
+    cmds:
+      - golangci-lint run ./...
+
+  vet:
+    desc: "Go's built-in check for suspicious constructs"
+    cmds:
+      - go vet ./...
+
+  gosec:
+    desc: Run gosec (insecure code patterns)
+    # Deliberate exceptions carry an inline "#nosec <RULE> -- reason" next to
+    # the code, never a blanket exclusion list here.
+    #
+    # GOSEC_GOTOOLCHAIN: when gosec lags a Go release it cannot read the
+    # packages ("export data version"). Run e.g.
+    #   GOSEC_GOTOOLCHAIN=go1.26.9 task ship
+    # The override is trusted only after proving both toolchains select the
+    # same packages and files, so gosec cannot pass code it never read.
+    cmds:
+      - |
+        if ! command -v gosec >/dev/null 2>&1; then
+          echo "gosec not installed:" >&2
+          echo "  go install github.com/securego/gosec/v2/cmd/gosec@latest" >&2
+          exit 1
+        fi
+        if [ -n "${GOSEC_GOTOOLCHAIN:-}" ]; then
+          # lb: Task expands a literal double brace as its own template.
+          lb='{'
+          view="$lb{.ImportPath}}:$lb{join .GoFiles \",\"}}:$lb{join .CgoFiles \",\"}}:$lb{join .IgnoredGoFiles \",\"}}$lb{if or .Error .DepsErrors}}:LOADERR$lb{end}}"
+          views="$(mktemp -d -t gosec-view.XXXXXX)"
+          go list -e -f "$view" ./... > "$views/now" || exit 1
+          GOTOOLCHAIN="$GOSEC_GOTOOLCHAIN" go list -e -f "$view" ./... > "$views/old" || {
+            echo "gosec: cannot list packages with GOTOOLCHAIN=$GOSEC_GOTOOLCHAIN" >&2; exit 1; }
+          if grep -h LOADERR "$views/now" "$views/old" >&2; then
+            echo "gosec: REFUSING - a package does not load under one of the toolchains." >&2
+            rm -rf "$views"
+            exit 1
+          fi
+          if ! cmp -s "$views/now" "$views/old"; then
+            echo "gosec: REFUSING - $GOSEC_GOTOOLCHAIN selects different files than $(go env GOVERSION):" >&2
+            diff "$views/old" "$views/now" >&2 || true
+            rm -rf "$views"
+            exit 1
+          fi
+          rm -rf "$views"
+          echo "  note: gosec loading packages with GOTOOLCHAIN=$GOSEC_GOTOOLCHAIN (checked)" >&2
+          export GOTOOLCHAIN="$GOSEC_GOTOOLCHAIN"
+        fi
+        set -o pipefail   # without it, rc below is tee's status and always 0
+        out="$(mktemp -t gosec.XXXXXX)"
+        trap 'rm -f "$out"' EXIT
+        rc=0
+        gosec ./... 2>&1 | tee "$out" || rc=$?
+        if [ "$rc" -ne 0 ] && grep -q "export data version" "$out"; then
+          echo "" >&2
+          echo "gosec could not READ the packages - nothing was checked." >&2
+          echo "  1. rebuild it:  brew reinstall --build-from-source gosec" >&2
+          echo "  2. or:          GOSEC_GOTOOLCHAIN=go1.26.9 task ship" >&2
+        fi
+        exit "$rc"
+
+  govulncheck:
+    desc: Check stdlib and dependencies against the Go vulnerability database
+    cmds:
+      - |
+        if ! command -v govulncheck >/dev/null 2>&1; then
+          echo "govulncheck not installed:" >&2
+          echo "  go install golang.org/x/vuln/cmd/govulncheck@latest" >&2
+          exit 1
+        fi
+        govulncheck ./...
+
+  tidy:
+    desc: Download and tidy Go dependencies
+    cmds:
+      - go mod tidy
+
+# ── tests ────────────────────────────────────────────────────────────────────
+
+  test:
+    desc: Run every test
+    deps: [test:go]
+
+  test:go:
+    desc: Run all Go tests
+    cmds:
+      - go test ./...
+
+# ── gates ────────────────────────────────────────────────────────────────────
+
+  ship:
+    desc: "Everything, then push. Refuses to push unless all of it passes."
+    # Task stops at the first failing command, so the ordering is the gate.
+    # Tests run before the analysers: a broken change should fail on
+    # behaviour rather than on a lint rule.
+    cmds:
+      - task: fmt:check
+      - go build ./...
+      - task: test
+      - task: lint
+      - task: scan
+      - task: gosec
+      - task: govulncheck
+      - git push
+
+  check:
+    desc: Everything ship runs, without the push
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: test:go
+      - task: lint
+      - task: scan
+      - task: gosec
+      - task: govulncheck
+
+# ── build ────────────────────────────────────────────────────────────────────
+
+  build:
+    desc: Build the binary into bin/, stamped with the current tag and commit
+    deps: [tidy]
+    vars:
+      VERSION_PKG: github.com/zany2dmax/synctags/internal/version
+      BUILD_TAG:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo unknown
+      BUILD_COMMIT:
+        sh: git rev-parse HEAD 2>/dev/null || echo unknown
+      BUILD_TIME:
+        sh: date -u +%Y-%m-%dT%H:%M:%SZ
+      LDFLAGS: >-
+        -X {{.VERSION_PKG}}.Tag={{.BUILD_TAG}}
+        -X {{.VERSION_PKG}}.Commit={{.BUILD_COMMIT}}
+        -X {{.VERSION_PKG}}.Built={{.BUILD_TIME}}
+    cmds:
+      - mkdir -p bin
+      - go build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY_NAME}} {{.SOURCE_NAME}}
+
+  run:
+    desc: "Run synctags locally (pass arguments after --, e.g. task run -- qualys get)"
+    cmds:
+      - go run {{.SOURCE_NAME}} {{.CLI_ARGS}}
+
+  install:
+    desc: Install the binary into ~/bin
+    deps: [build]
+    cmds:
+      - mkdir -p {{.INSTALL_PATH}}
+      - cp bin/{{.BINARY_NAME}} {{.INSTALL_PATH}}/{{.BINARY_NAME}}
+
+# ── housekeeping ─────────────────────────────────────────────────────────────
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf bin dist

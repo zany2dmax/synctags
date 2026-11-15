@@ -1,0 +1,12 @@
+# Local assistant instructions (never commit)
+/CLAUDE.md
+/.claude/
+
+# Build output
+/bin/
+/synctags
+*.test
+
+# Secrets / local config
+.env
+*.env

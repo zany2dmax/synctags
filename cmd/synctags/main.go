@@ -1,14 +1,9 @@
-/*
-Directory structure:
-
-├── synctags.go                // CLI entrypoint (package main)
-├── tags.go                    // Tag type & YAML helpers
-├── qualys_client.go           // Qualys API client
-├── crowdstrike_client.go      // CrowdStrike API client
-├── ninjaone_client.go         // Ninja One API client
-
-*/
-// synctags.go
+// Command synctags syncs tags across security tools, with Qualys as the
+// source of truth.
+//
+//	synctags <vendor> <action> [flags]
+//
+// Vendors: qualys, crowdstrike. Actions: get, create, sync.
 package main
 
 import (
@@ -16,7 +11,13 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/zany2dmax/synctags/internal/crowdstrike"
+	"github.com/zany2dmax/synctags/internal/qualys"
+	"github.com/zany2dmax/synctags/internal/tags"
+	"github.com/zany2dmax/synctags/internal/version"
 )
 
 var cfgFile string
@@ -28,9 +29,15 @@ func main() {
 		Use:   "synctags",
 		Short: "Sync tags across multiple integrations",
 	}
-
-	// Global config flag
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.synctags.yaml)")
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print the build version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(version.String())
+		},
+	})
 
 	// --------------------- Qualys Commands ---------------------
 	qualysCmd := &cobra.Command{
@@ -38,7 +45,6 @@ func main() {
 		Short: "Operate on Qualys tags",
 	}
 
-	// qualys get
 	qualysGet := &cobra.Command{
 		Use:   "get",
 		Short: "Fetch all Qualys tags and write to YAML",
@@ -46,26 +52,22 @@ func main() {
 			qc := newQualysClient()
 			qtags, err := qc.ListTags()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error listing Qualys tags: %v\n", err)
-				os.Exit(1)
+				fail("Error listing Qualys tags: %v", err)
 			}
-			// Normalize
 			norm := normalizeQualysTags(qtags)
 			out := viper.GetString("qualys.output")
 			if out == "" {
 				out = "qualys_tags.yml"
 			}
-			if err := WriteTagsToYAML(norm, out); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing YAML: %v\n", err)
-				os.Exit(1)
+			if err := tags.WriteYAML(norm, out); err != nil {
+				fail("Error writing YAML: %v", err)
 			}
 			fmt.Printf("Wrote %d tags to %s\n", len(norm), out)
 		},
 	}
 	qualysGet.Flags().StringP("output", "o", "", "YAML output file for Qualys tags")
-	viper.BindPFlag("qualys.output", qualysGet.Flags().Lookup("output"))
+	bindFlag("qualys.output", qualysGet.Flags().Lookup("output"))
 
-	// qualys create
 	qualysCreate := &cobra.Command{
 		Use:   "create",
 		Short: "Read YAML and create/update tags in Qualys",
@@ -74,24 +76,22 @@ func main() {
 			if in == "" {
 				in = "qualys_tags.yml"
 			}
-			tags, err := ReadTagsFromYAML(in)
+			list, err := tags.ReadYAML(in)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading YAML: %v\n", err)
-				os.Exit(1)
+				fail("Error reading YAML: %v", err)
 			}
 			qc := newQualysClient()
-			for _, t := range tags {
-				if err := qc.UpsertTag(t); err != nil {
+			for _, t := range list {
+				if err := qc.UpsertTag(t.Name); err != nil {
 					fmt.Fprintf(os.Stderr, "Failed to upsert Qualys tag %s: %v\n", t.Name, err)
 				}
 			}
-			fmt.Printf("Processed %d tags in Qualys\n", len(tags))
+			fmt.Printf("Processed %d tags in Qualys\n", len(list))
 		},
 	}
 	qualysCreate.Flags().StringP("input", "i", "", "YAML input file of Qualys tags")
-	viper.BindPFlag("qualys.input", qualysCreate.Flags().Lookup("input"))
+	bindFlag("qualys.input", qualysCreate.Flags().Lookup("input"))
 
-	// qualys sync (get + create)
 	qualysSync := &cobra.Command{
 		Use:   "sync",
 		Short: "Reconcile Qualys tags with YAML source",
@@ -110,32 +110,28 @@ func main() {
 		Short: "Operate on CrowdStrike tags",
 	}
 
-	// crowdstrike get
 	csGet := &cobra.Command{
 		Use:   "get",
 		Short: "Fetch all CrowdStrike tags and write to YAML",
 		Run: func(cmd *cobra.Command, args []string) {
 			cs := newCrowdstrikeClient()
-			tags, err := cs.ListTags()
+			list, err := cs.ListTags()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error listing CrowdStrike tags: %v\n", err)
-				os.Exit(1)
+				fail("Error listing CrowdStrike tags: %v", err)
 			}
 			out := viper.GetString("crowdstrike.output")
 			if out == "" {
 				out = "crowdstrike_tags.yml"
 			}
-			if err := WriteTagsToYAML(tags, out); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing YAML: %v\n", err)
-				os.Exit(1)
+			if err := tags.WriteYAML(list, out); err != nil {
+				fail("Error writing YAML: %v", err)
 			}
-			fmt.Printf("Wrote %d tags to %s\n", len(tags), out)
+			fmt.Printf("Wrote %d tags to %s\n", len(list), out)
 		},
 	}
 	csGet.Flags().StringP("output", "o", "", "YAML output file for CrowdStrike tags")
-	viper.BindPFlag("crowdstrike.output", csGet.Flags().Lookup("output"))
+	bindFlag("crowdstrike.output", csGet.Flags().Lookup("output"))
 
-	// crowdstrike create
 	csCreate := &cobra.Command{
 		Use:   "create",
 		Short: "Read YAML and create/update tags in CrowdStrike",
@@ -144,24 +140,22 @@ func main() {
 			if in == "" {
 				in = "crowdstrike_tags.yml"
 			}
-			tags, err := ReadTagsFromYAML(in)
+			list, err := tags.ReadYAML(in)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading YAML: %v\n", err)
-				os.Exit(1)
+				fail("Error reading YAML: %v", err)
 			}
 			cs := newCrowdstrikeClient()
-			for _, t := range tags {
-				if err := cs.UpsertTag(t); err != nil {
+			for _, t := range list {
+				if err := cs.UpsertTag(t.Name); err != nil {
 					fmt.Fprintf(os.Stderr, "Failed to upsert CrowdStrike tag %s: %v\n", t.Name, err)
 				}
 			}
-			fmt.Printf("Processed %d tags in CrowdStrike\n", len(tags))
+			fmt.Printf("Processed %d tags in CrowdStrike\n", len(list))
 		},
 	}
 	csCreate.Flags().StringP("input", "i", "", "YAML input file of CrowdStrike tags")
-	viper.BindPFlag("crowdstrike.input", csCreate.Flags().Lookup("input"))
+	bindFlag("crowdstrike.input", csCreate.Flags().Lookup("input"))
 
-	// crowdstrike sync
 	csSync := &cobra.Command{
 		Use:   "sync",
 		Short: "Reconcile CrowdStrike tags with YAML source",
@@ -174,22 +168,32 @@ func main() {
 	csCmd.AddCommand(csGet, csCreate, csSync)
 	rootCmd.AddCommand(csCmd)
 
-	// Execute
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		fail("%v", err)
 	}
 }
 
-// initConfig reads config file and ENV variables
+// fail prints to stderr and exits 1.
+func fail(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", a...)
+	os.Exit(1)
+}
+
+// bindFlag binds a flag to a viper key; a failure is a programming error.
+func bindFlag(key string, f *pflag.Flag) {
+	if err := viper.BindPFlag(key, f); err != nil {
+		fail("internal error binding --%s: %v", key, err)
+	}
+}
+
+// initConfig reads the config file and environment variables.
 func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fail("%v", err)
 		}
 		viper.AddConfigPath(home)
 		viper.SetConfigName(".synctags")
@@ -200,40 +204,35 @@ func initConfig() {
 	}
 }
 
-// newQualysClient initializes Qualys client
-func newQualysClient() *Client {
+func newQualysClient() *qualys.Client {
 	base := viper.GetString("qualys.base_url")
 	user := viper.GetString("qualys.username")
 	pass := viper.GetString("qualys.password")
 	if base == "" || user == "" || pass == "" {
-		fmt.Fprintln(os.Stderr, "Qualys credentials not set in config or env")
-		os.Exit(1)
+		fail("Qualys credentials not set in config or env")
 	}
-	return NewQualysClient(base, user, pass)
+	return qualys.NewClient(base, user, pass)
 }
 
-// newCrowdstrikeClient initializes CrowdStrike client
-func newCrowdstrikeClient() *CrowdstrikeClient {
+func newCrowdstrikeClient() *crowdstrike.Client {
 	base := viper.GetString("crowdstrike.base_url")
 	id := viper.GetString("crowdstrike.client_id")
 	secret := viper.GetString("crowdstrike.client_secret")
 	if base == "" || id == "" || secret == "" {
-		fmt.Fprintln(os.Stderr, "CrowdStrike credentials not set in config or env")
-		os.Exit(1)
+		fail("CrowdStrike credentials not set in config or env")
 	}
-	cs, err := NewCrowdstrikeClient(base, id, secret)
+	cs, err := crowdstrike.NewClient(base, id, secret)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing CrowdStrike client: %v\n", err)
-		os.Exit(1)
+		fail("Error initializing CrowdStrike client: %v", err)
 	}
 	return cs
 }
 
-// Helper to normalize QualysTag list (maps to Tag slice)
-func normalizeQualysTags(qts []QualysTag) []Tag {
-	var out []Tag
+// normalizeQualysTags maps Qualys tags to the canonical Tag form.
+func normalizeQualysTags(qts []qualys.Tag) []tags.Tag {
+	out := make([]tags.Tag, 0, len(qts))
 	for _, qt := range qts {
-		out = append(out, NormalizeQualysTag(qt))
+		out = append(out, tags.Tag{ID: qt.ID, Name: tags.Normalize(qt.Name)})
 	}
 	return out
 }

@@ -1,0 +1,36 @@
+# golangci-lint configuration (modelled on cti-agent's).
+#
+# `task lint` gates `task ship`, so the ruleset lives in the repo rather than
+# depending on whatever golangci-lint is installed on the machine pushing.
+#
+# No blanket exclusion list: a finding is fixed, or annotated at the line with
+# the reason (`#nosec RULE -- reason` for gosec, `//nolint:linter // reason`
+# for golangci-lint). Standalone staticcheck (`task scan`) reads
+# `//lint:ignore CHECK reason` and ignores //nolint, so an intentional
+# staticcheck finding needs both forms.
+
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  settings:
+    staticcheck:
+      checks:
+        - all
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
+formatters:
+  enable:
+    - gofmt
