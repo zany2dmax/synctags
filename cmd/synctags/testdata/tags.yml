@@ -1,0 +1,6 @@
+# Invented tags for tests. Never put real tag names here.
+tags:
+    - id: 1001
+      name: example-site-a
+    - id: 1002
+      name: example-business-unit
